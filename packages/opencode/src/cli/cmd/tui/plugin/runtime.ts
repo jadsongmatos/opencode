@@ -1,4 +1,3 @@
-import "@opentui/solid/runtime-plugin-support"
 import {
   type TuiDispose,
   type TuiPlugin,
@@ -73,6 +72,27 @@ type RuntimeState = {
 const log = Log.create({ service: "tui.plugin" })
 const DISPOSE_TIMEOUT_MS = 5000
 const KV_KEY = "plugin_enabled"
+let runtimePluginSupport: Promise<void> | undefined
+
+function ensureRuntimePluginSupport() {
+  if (runtimePluginSupport) return runtimePluginSupport
+  runtimePluginSupport = import("@opentui/solid/runtime-plugin-support")
+    .then(() => {})
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      if (
+        message.includes("OTUI_DUMP_CAPTURES") &&
+        message.includes("already registered with different configuration")
+      ) {
+        log.warn("failed to initialize opentui runtime plugin support", {
+          error: message,
+        })
+        return
+      }
+      throw error
+    })
+  return runtimePluginSupport
+}
 
 function fail(message: string, data: Record<string, unknown>) {
   if (!("error" in data)) {
@@ -930,6 +950,8 @@ export namespace TuiPluginRuntime {
   }
 
   async function load(api: Api) {
+    await ensureRuntimePluginSupport()
+
     const cwd = process.cwd()
     const slots = setupSlots(api)
     const next: RuntimeState = {
