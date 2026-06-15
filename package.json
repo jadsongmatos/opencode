@@ -106,6 +106,7 @@
     "turbo": "2.8.13"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "4.0.112",
     "@aws-sdk/client-s3": "3.933.0",
     "@opencode-ai/plugin": "workspace:*",
     "@opencode-ai/script": "workspace:*",

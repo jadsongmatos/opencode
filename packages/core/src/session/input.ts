@@ -189,7 +189,6 @@ export const hasPending = Effect.fn("SessionInput.hasPending")(function* (
         eq(SessionInputTable.delivery, delivery),
       ),
     )
-    .limit(1)
     .get()
     .pipe(Effect.orDie)
   return row !== undefined
@@ -336,7 +335,6 @@ export const promoteNextQueued = Effect.fn("SessionInput.promoteNextQueued")(fun
       ),
     )
     .orderBy(asc(SessionInputTable.admitted_seq))
-    .limit(1)
     .get()
     .pipe(Effect.orDie)
   return row === undefined ? false : yield* publish(db, events, sessionID, [row]).pipe(Effect.as(true))

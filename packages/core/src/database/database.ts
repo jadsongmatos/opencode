@@ -2,6 +2,7 @@ export * as Database from "./database"
 
 import { EffectDrizzleSqlite } from "@opencode-ai/effect-drizzle-sqlite"
 import { layer as sqliteLayer } from "#sqlite"
+import { layer as postgresLayer } from "#postgres"
 import { Context, Effect, Layer } from "effect"
 import { Global } from "../global"
 import { Flag } from "../flag/flag"
@@ -9,20 +10,23 @@ import { isAbsolute, join } from "path"
 import { DatabaseMigration } from "./migration"
 import { InstallationChannel } from "../installation/version"
 import { LayerNode } from "../effect/layer-node"
+import { pgUrl, sqlitePath, isPostgres } from "./dialect"
+import { Sqlite } from "./sqlite"
+import { Postgres } from "./postgres"
+import { PostgresEffect } from "./postgres-effect"
 
-const makeDatabase = EffectDrizzleSqlite.makeWithDefaults()
-type DatabaseShape = Effect.Success<typeof makeDatabase>
+const makeSqliteDatabase = EffectDrizzleSqlite.makeWithDefaults()
+type SqliteDatabaseShape = Effect.Success<typeof makeSqliteDatabase>
 
 export interface Interface {
-  db: DatabaseShape
+  db: SqliteDatabaseShape
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/storage/Database") {}
 
-export const layer = Layer.effect(
-  Service,
-  Effect.gen(function* () {
-    const db = yield* makeDatabase
+function makeSqliteLayer() {
+  return Effect.gen(function* () {
+    const db = yield* makeSqliteDatabase
 
     yield* db.run("PRAGMA journal_mode = WAL")
     yield* db.run("PRAGMA synchronous = NORMAL")
@@ -33,11 +37,26 @@ export const layer = Layer.effect(
     yield* DatabaseMigration.apply(db)
 
     return { db }
-  }).pipe(Effect.orDie),
-)
+  }).pipe(Effect.orDie)
+}
+
+function makePostgresLayer() {
+  return Effect.gen(function* () {
+    const rawDb = yield* Postgres.Drizzle
+    const db = PostgresEffect.wrapDb(rawDb) as SqliteDatabaseShape
+    return { db }
+  }).pipe(Effect.orDie)
+}
+
+export const layer = Layer.effect(Service, makeSqliteLayer())
 
 export function layerFromPath(filename: string) {
   return layer.pipe(Layer.provide(sqliteLayer({ filename })))
+}
+
+function layerFromUrl(url: string) {
+  const pgLayer = Layer.effect(Service, makePostgresLayer())
+  return pgLayer.pipe(Layer.provide(postgresLayer({ url })))
 }
 
 export function path() {
@@ -56,6 +75,13 @@ export function path() {
 
 export const defaultLayer = Layer.unwrap(
   Effect.gen(function* () {
+    if (isPostgres()) {
+      const url = pgUrl()
+      if (!url) {
+        return yield* Effect.fail(new Error("PostgreSQL URL not configured"))
+      }
+      return layerFromUrl(url)
+    }
     return layerFromPath(path())
   }),
 ).pipe(Layer.provide(Global.defaultLayer))

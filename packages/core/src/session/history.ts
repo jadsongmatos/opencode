@@ -16,7 +16,6 @@ const latestCompaction = Effect.fnUntraced(function* (db: DatabaseService, sessi
     .from(SessionMessageTable)
     .where(and(eq(SessionMessageTable.session_id, sessionID), eq(SessionMessageTable.type, "compaction")))
     .orderBy(desc(SessionMessageTable.seq))
-    .limit(1)
     .get()
     .pipe(Effect.orDie)
 })

@@ -142,7 +142,6 @@ function run(db: DatabaseService, event: SessionEvent.Event) {
               and(eq(SessionMessageTable.session_id, event.data.sessionID), eq(SessionMessageTable.type, "assistant")),
             )
             .orderBy(desc(SessionMessageTable.seq))
-            .limit(1)
             .get()
             .pipe(Effect.orDie)
           if (!row) return

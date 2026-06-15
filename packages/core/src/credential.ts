@@ -12,6 +12,7 @@ import { FSUtil } from "./fs-util"
 import { Global } from "./global"
 import { DataMigrationTable } from "./data-migration.sql"
 import path from "path"
+import { DatabaseDialect } from "./database/dialect"
 
 export const ID = Schema.String.pipe(
   Schema.brand("Credential.ID"),
@@ -103,11 +104,13 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/v2
 
 export const legacyImportLayer = Layer.effectDiscard(
   Effect.gen(function* () {
+    if (DatabaseDialect.isPostgres()) return
     const { db } = yield* Database.Service
     const fs = yield* FSUtil.Service
     const global = yield* Global.Service
     const name = "credential.auth-json"
-    if (yield* db.select().from(DataMigrationTable).where(eq(DataMigrationTable.name, name)).get()) return
+    const existing = yield* db.select().from(DataMigrationTable).where(eq(DataMigrationTable.name, name)).get()
+    if (existing) return
     const raw = yield* fs.readJson(path.join(global.data, "auth.json")).pipe(Effect.option)
     if (Option.isNone(raw) || typeof raw.value !== "object" || raw.value === null || Array.isArray(raw.value)) return
     const decode = Schema.decodeUnknownOption(LegacyValue)
