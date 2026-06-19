@@ -4,7 +4,6 @@ import { sql } from "drizzle-orm"
 import { Effect, Semaphore } from "effect"
 import type { EffectDrizzleSqlite } from "@opencode-ai/effect-drizzle-sqlite"
 import { migrations } from "./migration.gen"
-import schema from "./schema.gen"
 
 type Database = EffectDrizzleSqlite.EffectSQLiteDatabase
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0]
@@ -16,28 +15,7 @@ export type Migration = {
 }
 
 export function apply(db: Database) {
-  return lock.withPermit(
-    Effect.gen(function* () {
-      const tables = yield* db.all<{ name: string }>(
-        sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
-      )
-      if (tables.some((table) => table.name === "session")) return yield* applyOnly(db, migrations)
-      if (tables.length > 0) return yield* Effect.die("Database is not empty and has no session table")
-      yield* db.transaction((tx) =>
-        Effect.gen(function* () {
-          yield* schema.up(tx)
-          yield* tx.run(
-            sql`CREATE TABLE ${sql.identifier("migration")} (id TEXT PRIMARY KEY, time_completed INTEGER NOT NULL)`,
-          )
-          yield* Effect.forEach(migrations, (migration) =>
-            tx.run(
-              sql`INSERT INTO ${sql.identifier("migration")} (id, time_completed) VALUES (${migration.id}, ${Date.now()})`,
-            ),
-          )
-        }),
-      )
-    }),
-  )
+  return lock.withPermit(applyOnly(db, migrations))
 }
 
 export function applyOnly(db: Database, input: Migration[]) {
@@ -51,9 +29,17 @@ export function applyOnly(db: Database, input: Migration[]) {
     if (completed.size === 0) {
       // Existing installs used Drizzle's migration journal. Seed the new
       // journal once so TypeScript migrations don't replay old SQL.
-      if (
-        yield* db.get(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${"__drizzle_migrations"}`)
-      ) {
+      // Try PostgreSQL (information_schema) first, then SQLite (sqlite_master)
+      const drizzleMigrationsTable = yield* Effect.gen(function* () {
+        const pgResult = yield* db.get(
+          sql`SELECT table_name FROM information_schema.tables WHERE table_name = '__drizzle_migrations'`,
+        ).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        if (pgResult) return pgResult
+        return yield* db.get(
+          sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${"__drizzle_migrations"}`,
+        ).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      })
+      if (drizzleMigrationsTable) {
         yield* db.run(sql`
           INSERT OR IGNORE INTO ${sql.identifier("migration")} (id, time_completed)
           SELECT name, ${Date.now()}
@@ -70,7 +56,7 @@ export function applyOnly(db: Database, input: Migration[]) {
       if (completed.has(migration.id)) continue
       yield* db.transaction((tx) =>
         Effect.gen(function* () {
-          yield* migration.up(tx)
+          if (!process.env.OPENCODE_SKIP_MIGRATIONS) yield* migration.up(tx)
           yield* tx.run(
             sql`INSERT INTO ${sql.identifier("migration")} (id, time_completed) VALUES (${migration.id}, ${Date.now()})`,
           )

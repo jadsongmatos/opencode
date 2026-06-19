@@ -50,6 +50,7 @@ export const index = typed.index
 export const uniqueIndex = typed.uniqueIndex
 export const foreignKey = typed.foreignKey
 export const customType = typed.customType
+export const jsonb = typed.jsonb
 
 export const Timestamps = {
   time_created: integer()

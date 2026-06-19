@@ -1,4 +1,4 @@
-import { table, text, integer, index, primaryKey, real, uniqueIndex, Timestamps } from "../database/dialect"
+import { table, text, integer, index, primaryKey, real, uniqueIndex, Timestamps, jsonb } from "../database/dialect"
 import * as DatabasePath from "../database/path"
 import { ProjectTable } from "../project/sql"
 import type { SessionMessage } from "./message"
@@ -72,7 +72,7 @@ export const MessageTable = table(
       .notNull()
       .references(() => SessionTable.id, { onDelete: "cascade" }),
     ...Timestamps,
-    data: text({ mode: "json" }).notNull().$type<V1MessageData>(),
+    data: jsonb().notNull().$type<V1MessageData>(),
   },
   (table) => [index("message_session_time_created_id_idx").on(table.session_id, table.time_created, table.id)],
 )
@@ -87,7 +87,7 @@ export const PartTable = table(
       .references(() => MessageTable.id, { onDelete: "cascade" }),
     session_id: text().$type<SessionSchema.ID>().notNull(),
     ...Timestamps,
-    data: text({ mode: "json" }).notNull().$type<V1PartData>(),
+    data: jsonb().notNull().$type<V1PartData>(),
   },
   (table) => [
     index("part_message_id_id_idx").on(table.message_id, table.id),

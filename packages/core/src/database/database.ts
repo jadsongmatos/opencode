@@ -44,6 +44,7 @@ function makePostgresLayer() {
   return Effect.gen(function* () {
     const rawDb = yield* Postgres.Drizzle
     const db = PostgresEffect.wrapDb(rawDb) as SqliteDatabaseShape
+    yield* DatabaseMigration.apply(db)
     return { db }
   }).pipe(Effect.orDie)
 }

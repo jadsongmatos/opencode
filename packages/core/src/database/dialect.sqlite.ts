@@ -1,5 +1,9 @@
+import { sqliteTable as table, text, integer, primaryKey, index, uniqueIndex, foreignKey, customType, real, json } from "drizzle-orm/sqlite-core"
+
+const jsonb = (name?: string) => text(name, { mode: "json" })
+
 export {
-  sqliteTable as table,
+  table,
   text,
   integer,
   primaryKey,
@@ -8,4 +12,5 @@ export {
   foreignKey,
   customType,
   real,
-} from "drizzle-orm/sqlite-core"
+  jsonb,
+}

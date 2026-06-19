@@ -31,16 +31,18 @@ export class Admitted extends Schema.Class<Admitted>("SessionInput.Admitted")({
 const decodePrompt = Schema.decodeUnknownSync(Prompt)
 const encodePrompt = Schema.encodeSync(Prompt)
 
-const fromRow = (row: typeof SessionInputTable.$inferSelect): Admitted =>
-  new Admitted({
+const fromRow = (row: typeof SessionInputTable.$inferSelect): Admitted => {
+  const promptData = typeof row.prompt === "string" ? JSON.parse(row.prompt) : row.prompt
+  return new Admitted({
     admittedSeq: row.admitted_seq,
     id: SessionMessage.ID.make(row.id),
     sessionID: SessionSchema.ID.make(row.session_id),
-    prompt: decodePrompt(row.prompt),
+    prompt: decodePrompt(promptData),
     delivery: row.delivery,
     timeCreated: DateTime.makeUnsafe(row.time_created),
     ...(row.promoted_seq === null ? {} : { promotedSeq: row.promoted_seq }),
   })
+}
 
 export const find = Effect.fn("SessionInput.find")(function* (db: DatabaseService, id: SessionMessage.ID) {
   const row = yield* db.select().from(SessionInputTable).where(eq(SessionInputTable.id, id)).get().pipe(Effect.orDie)
@@ -130,7 +132,7 @@ export const projectAdmitted = Effect.fn("SessionInput.projectAdmitted")(functio
       id: input.id,
       session_id: input.sessionID,
       admitted_seq: input.admittedSeq,
-      prompt: encodePrompt(input.prompt),
+      prompt: JSON.stringify(encodePrompt(input.prompt)),
       delivery: input.delivery,
       time_created: DateTime.toEpochMillis(input.timeCreated),
     })
@@ -275,12 +277,13 @@ const publish = Effect.fn("SessionInput.publish")(function* (
   rows: ReadonlyArray<typeof SessionInputTable.$inferSelect>,
 ) {
   for (const row of rows) {
+    const promptData = typeof row.prompt === "string" ? JSON.parse(row.prompt) : row.prompt
     yield* events
       .publish(SessionEvent.PromptLifecycle.Promoted, {
         sessionID,
         timestamp: yield* DateTime.now,
         messageID: SessionMessage.ID.make(row.id),
-        prompt: decodePrompt(row.prompt),
+        prompt: decodePrompt(promptData),
         timeCreated: DateTime.makeUnsafe(row.time_created),
       })
       .pipe(

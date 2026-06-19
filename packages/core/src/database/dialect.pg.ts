@@ -44,4 +44,5 @@ export {
   uniqueIndex,
   pgForeignKey as foreignKey,
   pgCustomType as customType,
+  jsonb,
 }
