@@ -82,7 +82,7 @@ export const SessionPaths = {
   children: `${root}/:sessionID/children`,
   todo: `${root}/:sessionID/todo`,
   diff: `${root}/:sessionID/diff`,
-  messages: `${root}/:sessionID/message`,
+  messages: `${root}/:sessionID/messages`,
   message: `${root}/:sessionID/message/:messageID`,
   create: root,
   remove: `${root}/:sessionID`,
