@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm"
 import { Effect, Semaphore } from "effect"
 import type { EffectDrizzleSqlite } from "@opencode-ai/effect-drizzle-sqlite"
 import { migrations } from "./migration.gen"
+import { isPostgres } from "./dialect"
 
 type Database = EffectDrizzleSqlite.EffectSQLiteDatabase
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0]
@@ -11,8 +12,10 @@ const lock = Semaphore.makeUnsafe(1)
 
 export type Migration = {
   id: string
-  up: (tx: Transaction) => Effect.Effect<void, unknown>
+  up: (tx: Transaction, dialect: "sqlite" | "postgres") => Effect.Effect<void, unknown>
 }
+
+const dialect = isPostgres() ? "postgres" : "sqlite"
 
 export function apply(db: Database) {
   return lock.withPermit(applyOnly(db, migrations))
@@ -27,9 +30,6 @@ export function applyOnly(db: Database, input: Migration[]) {
       (yield* db.all<{ id: string }>(sql`SELECT id FROM ${sql.identifier("migration")}`)).map((row) => row.id),
     )
     if (completed.size === 0) {
-      // Existing installs used Drizzle's migration journal. Seed the new
-      // journal once so TypeScript migrations don't replay old SQL.
-      // Try PostgreSQL (information_schema) first, then SQLite (sqlite_master)
       const drizzleMigrationsTable = yield* Effect.gen(function* () {
         const pgResult = yield* db.get(
           sql`SELECT table_name FROM information_schema.tables WHERE table_name = '__drizzle_migrations'`,
@@ -56,7 +56,7 @@ export function applyOnly(db: Database, input: Migration[]) {
       if (completed.has(migration.id)) continue
       yield* db.transaction((tx) =>
         Effect.gen(function* () {
-          if (!process.env.OPENCODE_SKIP_MIGRATIONS) yield* migration.up(tx)
+          if (!process.env.OPENCODE_SKIP_MIGRATIONS) yield* migration.up(tx, dialect)
           yield* tx.run(
             sql`INSERT INTO ${sql.identifier("migration")} (id, time_completed) VALUES (${migration.id}, ${Date.now()})`,
           )

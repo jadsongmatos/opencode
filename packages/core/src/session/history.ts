@@ -52,7 +52,7 @@ const messageRows = Effect.fnUntraced(function* (
 })
 
 const decodeMessageRow = (row: typeof SessionMessageTable.$inferSelect) =>
-  decode({ ...row.data, id: row.id, type: row.type }).pipe(
+  decode({ ...JSON.parse(row.data as string), id: row.id, type: row.type }).pipe(
     Effect.mapError(
       () =>
         new MessageDecodeError({

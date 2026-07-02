@@ -158,7 +158,7 @@ export const legacyImportLayer = Layer.effectDiscard(
             connector_id: item.connectorID,
             method_id: item.methodID,
             label: "Imported",
-            value: item.value,
+            value: JSON.stringify(item.value),
             active: true,
           })
         }
@@ -180,7 +180,7 @@ export const layer = Layer.effect(
         connectorID: row.connector_id,
         methodID: row.method_id,
         label: row.label,
-        value: decodeValue(row.value),
+        value: decodeValue(JSON.parse(row.value)),
       })
 
     const activate = Effect.fn("Credential.activate")(function* (id: ID) {
@@ -275,7 +275,7 @@ export const layer = Layer.effect(
                   connector_id: credential.connectorID,
                   method_id: credential.methodID,
                   label: credential.label,
-                  value: credential.value,
+                  value: JSON.stringify(credential.value),
                   active: true,
                 })
                 .run()
@@ -289,9 +289,12 @@ export const layer = Layer.effect(
       }),
       update: Effect.fn("Credential.update")(function* (id, updates) {
         if (!updates.label && !updates.value) return
+        const set: Record<string, unknown> = {}
+        if (updates.label) set.label = updates.label
+        if (updates.value) set.value = JSON.stringify(updates.value)
         yield* db
           .update(CredentialTable)
-          .set({ label: updates.label, value: updates.value })
+          .set(set)
           .where(eq(CredentialTable.id, id))
           .run()
           .pipe(Effect.orDie)

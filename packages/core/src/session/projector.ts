@@ -113,14 +113,14 @@ function applyUsage(
 function run(db: DatabaseService, event: SessionEvent.Event) {
   return Effect.gen(function* () {
     const decodeRow = (row: typeof SessionMessageTable.$inferSelect) =>
-      decodeMessage({ ...row.data, id: row.id, type: row.type })
+      decodeMessage({ ...JSON.parse(row.data as string), id: row.id, type: row.type })
     const updateMessage = (message: SessionMessage.Message) => {
       if (event.seq === undefined) return Effect.die("Synchronized Session event is missing aggregate sequence")
       const encoded = encodeMessage(message)
       const { id, type, ...data } = encoded
       return db
         .update(SessionMessageTable)
-        .set({ type, time_created: DateTime.toEpochMillis(message.time.created), data })
+        .set({ type, time_created: DateTime.toEpochMillis(message.time.created), data: JSON.stringify(data) })
         .where(
           and(
             eq(SessionMessageTable.id, SessionMessage.ID.make(id)),
@@ -202,7 +202,7 @@ function insertMessage(db: DatabaseService, event: SessionEvent.Event, message: 
       type,
       seq: event.seq,
       time_created: DateTime.toEpochMillis(message.time.created),
-      data,
+      data: JSON.stringify(data),
     })
     .run()
     .pipe(Effect.orDie)

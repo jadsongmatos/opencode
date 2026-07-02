@@ -268,6 +268,7 @@ export const layerWith = (options?: LayerOptions) =>
                           const encoded = syncRegistry
                             .get(versionedType(definition.type, sync.version))!
                             .encode(event.data) as Record<string, unknown>
+                          const encodedString = JSON.stringify(encoded)
                           if (input?.strictOwner && row?.ownerID && row.ownerID !== input.ownerID) {
                             yield* Effect.die(
                               new InvalidSyncEventError({
@@ -286,7 +287,7 @@ export const layerWith = (options?: LayerOptions) =>
                             if (
                               stored?.id === event.id &&
                               stored.type === versionedType(definition.type, sync.version) &&
-                              isDeepStrictEqual(stored.data, encoded)
+                              isDeepStrictEqual(JSON.parse(stored.data as string), encoded)
                             ) {
                               if (input.ownerID && row?.ownerID == null) {
                                 yield* db
@@ -349,7 +350,7 @@ export const layerWith = (options?: LayerOptions) =>
                             })
                             .run()
                             .pipe(Effect.orDie)
-                          yield* db
+yield* db
                             .insert(EventTable)
                             .values([
                               {
@@ -357,7 +358,7 @@ export const layerWith = (options?: LayerOptions) =>
                                 aggregate_id: aggregateID,
                                 seq,
                                 type: versionedType(definition.type, sync.version),
-                                data: encoded,
+                                data: encodedString,
                               },
                             ])
                             .run()
@@ -465,7 +466,7 @@ export const layerWith = (options?: LayerOptions) =>
               id: event.id,
               type: definition.type,
               version: definition.sync.version,
-              data: definition.decode(event.data),
+              data: definition.decode(JSON.parse(event.data as string)),
               replay: true,
             } as Payload
             const committed = yield* commitSyncEvent(payload, {

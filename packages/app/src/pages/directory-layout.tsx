@@ -9,6 +9,7 @@ import { SDKProvider } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { decode64 } from "@/utils/base64"
 import { Schema } from "effect"
+import { existsSync } from "node:fs"
 
 export function DirectoryDataProvider(props: ParentProps<{ directory: string; draftID?: string }>) {
   const location = useLocation()
@@ -20,7 +21,7 @@ export function DirectoryDataProvider(props: ParentProps<{ directory: string; dr
   createEffect(() => {
     // A draft lives at /new-session?draftId=… and has no directory segment to normalize.
     if (props.draftID) return
-    const next = sync().data.path.directory
+    const next = sync.data.path.directory
     if (!next || next === props.directory) return
     const path = location.pathname.slice(slug().length + 1)
     navigate(`/${base64Encode(next)}${path}${location.search}${location.hash}`, { replace: true })
@@ -28,15 +29,12 @@ export function DirectoryDataProvider(props: ParentProps<{ directory: string; dr
 
   createResource(
     () => params.id,
-    (id) =>
-      sync()
-        .session.sync(id)
-        .catch(() => {}),
+    (id) => sync.session.sync(id).catch(() => {}),
   )
 
   return (
     <DataProvider
-      data={sync().data}
+      data={sync.data}
       directory={props.directory}
       onNavigateToSession={(sessionID: string) => navigate(`/${slug()}/session/${sessionID}`)}
       onSessionHref={(sessionID: string) => `/${slug()}/session/${sessionID}`}
@@ -52,6 +50,8 @@ export type ProjectDirString = Schema.Schema.Type<typeof ProjectDirString>
 export function decodeDirectory(dir: string): ProjectDirString | undefined {
   const decoded = decode64(dir)
   if (!decoded) return
+  // Basic validation: must be an absolute path
+  if (!decoded.startsWith("/") && !decoded.startsWith("\\\\")) return
   return ProjectDirString.make(decoded)
 }
 

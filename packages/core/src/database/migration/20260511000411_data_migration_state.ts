@@ -6,9 +6,9 @@ export default {
   up(tx) {
     return Effect.gen(function* () {
       yield* tx.run(`
-        CREATE TABLE \`data_migration\` (
-          \`name\` text PRIMARY KEY,
-          \`time_completed\` integer NOT NULL
+        CREATE TABLE "data_migration" (
+          "name" text PRIMARY KEY,
+          "time_completed" integer NOT NULL
         );
       `)
     })

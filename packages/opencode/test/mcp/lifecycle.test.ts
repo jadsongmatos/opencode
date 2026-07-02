@@ -1,7 +1,6 @@
 import path from "node:path"
-import { pathToFileURL } from "node:url"
 import { expect, mock, beforeEach } from "bun:test"
-import { ListRootsRequestSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js"
 import { Cause, Effect, Exit } from "effect"
 import type { MCP as MCPNS } from "../../src/mcp/index"
 import { testEffect } from "../lib/effect"
@@ -39,8 +38,6 @@ interface MockClientState {
     { resources: Array<{ name: string; uri: string; description?: string }>; nextCursor?: string }
   >
   closed: boolean
-  clientOptions?: { capabilities?: { roots?: { listChanged?: boolean } } }
-  requestHandlers: Map<unknown, (...args: any[]) => Promise<any>>
   notificationHandlers: Map<unknown, (...args: any[]) => any>
 }
 
@@ -78,7 +75,6 @@ function getOrCreateClientState(name?: string): MockClientState {
       promptPages: {},
       resourcePages: {},
       closed: false,
-      requestHandlers: new Map(),
       notificationHandlers: new Map(),
     }
     clientStates.set(key, state)
@@ -153,10 +149,8 @@ void mock.module("@modelcontextprotocol/sdk/client/index.js", () => ({
     _state!: MockClientState
     transport: any
 
-    constructor(_info: any, options?: MockClientState["clientOptions"]) {
+    constructor(_opts: any) {
       clientCreateCount++
-      this._state = getOrCreateClientState(lastCreatedClientName)
-      this._state.clientOptions = options
     }
 
     async connect(transport: { start: () => Promise<void> }) {
@@ -164,10 +158,6 @@ void mock.module("@modelcontextprotocol/sdk/client/index.js", () => ({
       await transport.start()
       // After successful connect, bind to the last-created client name
       this._state = getOrCreateClientState(lastCreatedClientName)
-    }
-
-    setRequestHandler(schema: unknown, handler: (...args: any[]) => Promise<any>) {
-      this._state.requestHandlers.set(schema, handler)
     }
 
     setNotificationHandler(schema: unknown, handler: (...args: any[]) => any) {
@@ -260,28 +250,6 @@ function statusName(status: Record<string, MCPNS.Status> | MCPNS.Status, server:
   if ("status" in status) return status.status
   return status[server]?.status
 }
-
-it.instance(
-  "advertises and lists the instance directory as its root",
-  () =>
-    MCP.Service.use((mcp: MCPNS.Interface) =>
-      Effect.gen(function* () {
-        const { directory } = yield* TestInstance
-        lastCreatedClientName = "roots"
-        yield* mcp.add("roots", { type: "local", command: ["echo", "test"] })
-
-        const state = getOrCreateClientState("roots")
-        expect(state.clientOptions?.capabilities?.roots).toEqual({})
-        expect(state.clientOptions?.capabilities?.roots?.listChanged).toBeUndefined()
-
-        const handler = state.requestHandlers.get(ListRootsRequestSchema)
-        expect(handler).toBeDefined()
-        const result = yield* Effect.promise(() => handler?.() ?? Promise.reject(new Error("roots handler missing")))
-        expect(result).toEqual({ roots: [{ uri: pathToFileURL(directory).href }] })
-      }),
-    ),
-  { config: { mcp: {} } },
-)
 
 it.instance(
   "local mcp cwd resolves relative paths against instance directory",

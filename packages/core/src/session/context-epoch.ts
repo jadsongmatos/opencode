@@ -79,7 +79,7 @@ const prepareOnce = Effect.fnUntraced(function* (
     return { baseline: generation.baseline, baselineSeq, revision: 0 }
   }
 
-  const snapshot = yield* Schema.decodeUnknownEffect(SystemContext.Snapshot)(stored.snapshot).pipe(
+  const snapshot = yield* Schema.decodeUnknownEffect(SystemContext.Snapshot)(JSON.parse(stored.snapshot as string)).pipe(
     Effect.mapError((error) => new ContextSnapshotDecodeError({ sessionID, details: String(error) })),
   )
   const replacingAgent = stored.agent !== agent
@@ -220,7 +220,7 @@ const insert = Effect.fnUntraced(function* (
               session_id: sessionID,
               baseline: generation.baseline,
               agent,
-              snapshot: generation.snapshot,
+              snapshot: JSON.stringify(generation.snapshot),
               baseline_seq: baselineSeq,
               revision: 0,
             })
@@ -256,7 +256,7 @@ const replace = Effect.fnUntraced(function* (
             .set({
               baseline: generation.baseline,
               agent,
-              snapshot: generation.snapshot,
+              snapshot: JSON.stringify(generation.snapshot),
               baseline_seq: baselineSeq,
               replacement_seq: null,
               revision: expectedRevision + 1,

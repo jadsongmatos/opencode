@@ -2,7 +2,7 @@ import type { Event } from "@opencode-ai/sdk/v2/client"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { type Accessor, batch, createMemo, onCleanup, onMount } from "solid-js"
+import { batch, onCleanup, onMount } from "solid-js"
 import { createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
@@ -21,7 +21,7 @@ export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: () 
   start()
 }
 
-function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope) {
+export function createServerSdkContext(server: ServerConnection.Any, scope: ServerScope) {
   const platform = usePlatform()
   const abort = new AbortController()
 
@@ -261,31 +261,21 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   }
 }
 
-type ServerSDKBase = ReturnType<typeof createServerSdkContextBase>
-export type ServerSDK = ServerSDKBase & {
-  createDirSdkContext: (directory: string) => ReturnType<typeof createDirSdkContext>
-}
-
-export function createServerSdkContext(server: ServerConnection.Any, scope: ServerScope): ServerSDK {
-  const sdk = createServerSdkContextBase(server, scope)
-  return Object.assign(sdk, {
-    createDirSdkContext: createRefCountMap((dir) => createDirSdkContext(dir, sdk)),
-  })
-}
+export type ServerSDK = ReturnType<typeof createServerSdkContext>
 
 export const { use: useServerSDK, provider: ServerSDKProvider } = createSimpleContext({
   name: "ServerSDK",
-  // Returns an accessor so the resolved server can change reactively (e.g. a
-  // /new-session draft retargeting its server) without re-instantiating the subtree.
-  init: (props: { server?: Accessor<ServerConnection.Any | undefined> }) => {
+  init: (props: { server?: ServerConnection.Any }) => {
     const global = useGlobal()
     const language = useLanguage()
     const server = useServer()
 
-    return createMemo<ServerSDK>(() => {
-      const conn = props.server?.() ?? server.current
-      if (!conn) throw new Error(language.t("error.serverSDK.noServerAvailable"))
-      return global.createServerCtx(conn).sdk
+    const conn = props.server ?? server.current
+    if (!conn) throw new Error(language.t("error.serverSDK.noServerAvailable"))
+
+    const ctx = global.createServerCtx(conn)
+    return Object.assign(ctx.sdk, {
+      createDirSdkContext: createRefCountMap((dir) => createDirSdkContext(dir, ctx.sdk)),
     })
   },
 })
@@ -294,7 +284,7 @@ type SDKEventMap = {
   [key in Event["type"]]: Extract<Event, { type: key }>
 }
 
-function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
+function createDirSdkContext(directory: string, serverSDK: ServerSDK) {
   const client = serverSDK.createClient({
     directory,
     throwOnError: true,

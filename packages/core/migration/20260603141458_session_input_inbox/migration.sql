@@ -1,0 +1,9 @@
+CREATE TABLE \"session_input\" (
+          \"seq\" integer PRIMARY KEY AUTOINCREMENT,
+          \"id\" text NOT NULL UNIQUE,
+          \"session_id\" text NOT NULL,
+          \"prompt\" text NOT NULL,
+          \"delivery\" text NOT NULL,
+          \"promoted_seq\" integer,
+          \"time_created\" integer NOT NULL,
+          CONSTRAINT \"fk_session_input_session_id_session_id_fk\" FOREIGN KEY (\"session_id\

@@ -71,12 +71,11 @@ export const WebCommand = effectCmd({
         )
       }
 
-      // Open localhost in browser
-      open(localhostUrl).catch(() => {})
+      if (process.env.BROWSER !== "none") open(localhostUrl).catch(() => {})
     } else {
       const displayUrl = server.url.toString()
       UI.println(UI.Style.TEXT_INFO_BOLD + "  Web interface:    ", UI.Style.TEXT_NORMAL, displayUrl)
-      open(displayUrl).catch(() => {})
+      if (process.env.BROWSER !== "none") open(displayUrl).catch(() => {})
     }
 
     yield* Effect.never

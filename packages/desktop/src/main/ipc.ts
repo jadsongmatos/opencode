@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
 import { stat } from "node:fs/promises"
 import { basename } from "node:path"
+import { existsSync } from "node:fs"
 import { app, BrowserWindow, Notification, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
@@ -107,11 +108,29 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle(
     "open-directory-picker",
     async (_event: IpcMainInvokeEvent, opts?: { multiple?: boolean; title?: string; defaultPath?: string }) => {
-      const result = await dialog.showOpenDialog({
-        properties: ["openDirectory", ...(opts?.multiple ? ["multiSelections" as const] : []), "createDirectory"],
-        title: opts?.title ?? "Choose a folder",
-        defaultPath: opts?.defaultPath,
-      })
+      let defaultPath = opts?.defaultPath
+      if (typeof defaultPath === "string" && defaultPath.length > 0) {
+        try {
+          if (!existsSync(defaultPath)) {
+            defaultPath = undefined
+          }
+        } catch {
+          defaultPath = undefined
+        }
+      } else {
+        defaultPath = undefined
+      }
+      let result
+      try {
+        result = await dialog.showOpenDialog({
+          properties: ["openDirectory", ...(opts?.multiple ? ["multiSelections" as const] : []), "createDirectory"],
+          title: opts?.title ?? "Choose a folder",
+          defaultPath,
+        })
+      } catch (error) {
+        console.error("Failed to open directory picker:", error)
+        return null
+      }
       if (result.canceled) return null
       return opts?.multiple ? result.filePaths : result.filePaths[0]
     },
@@ -123,12 +142,30 @@ export function registerIpcHandlers(deps: Deps) {
       event: IpcMainInvokeEvent,
       opts?: { multiple?: boolean; title?: string; defaultPath?: string; extensions?: string[] },
     ) => {
-      const result = await dialog.showOpenDialog({
-        properties: ["openFile", ...(opts?.multiple ? ["multiSelections" as const] : [])],
-        title: opts?.title ?? "Choose a file",
-        defaultPath: opts?.defaultPath,
-        filters: pickerFilters(opts?.extensions),
-      })
+      let defaultPath = opts?.defaultPath
+      if (typeof defaultPath === "string" && defaultPath.length > 0) {
+        try {
+          if (!existsSync(defaultPath)) {
+            defaultPath = undefined
+          }
+        } catch {
+          defaultPath = undefined
+        }
+      } else {
+        defaultPath = undefined
+      }
+      let result
+      try {
+        result = await dialog.showOpenDialog({
+          properties: ["openFile", ...(opts?.multiple ? ["multiSelections" as const] : [])],
+          title: opts?.title ?? "Choose a file",
+          defaultPath,
+          filters: pickerFilters(opts?.extensions),
+        })
+      } catch (error) {
+        console.error("Failed to open file picker:", error)
+        return null
+      }
       if (result.canceled) return null
       const files = await Promise.all(
         result.filePaths.map(async (filePath) => ({
@@ -154,10 +191,28 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle(
     "save-file-picker",
     async (_event: IpcMainInvokeEvent, opts?: { title?: string; defaultPath?: string }) => {
-      const result = await dialog.showSaveDialog({
-        title: opts?.title ?? "Save file",
-        defaultPath: opts?.defaultPath,
-      })
+      let defaultPath = opts?.defaultPath
+      if (typeof defaultPath === "string" && defaultPath.length > 0) {
+        try {
+          if (!existsSync(defaultPath)) {
+            defaultPath = undefined
+          }
+        } catch {
+          defaultPath = undefined
+        }
+      } else {
+        defaultPath = undefined
+      }
+      let result
+      try {
+        result = await dialog.showSaveDialog({
+          title: opts?.title ?? "Save file",
+          defaultPath,
+        })
+      } catch (error) {
+        console.error("Failed to open save file picker:", error)
+        return null
+      }
       if (result.canceled) return null
       return result.filePath ?? null
     },

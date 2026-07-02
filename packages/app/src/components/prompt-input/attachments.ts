@@ -1,7 +1,7 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { showToast } from "@/utils/toast"
-import { type ContentPart, type ImageAttachmentPart, type usePrompt } from "@/context/prompt"
+import { usePrompt, type ContentPart, type ImageAttachmentPart } from "@/context/prompt"
 import { useLanguage } from "@/context/language"
 import { uuid } from "@/utils/uuid"
 import { getCursorPosition } from "./editor-dom"
@@ -26,7 +26,6 @@ function dataUrl(file: File, mime: string) {
 }
 
 type PromptAttachmentsInput = {
-  prompt: ReturnType<typeof usePrompt>
   editor: () => HTMLDivElement | undefined
   isDialogActive: () => boolean
   setDraggingType: (type: "image" | "@mention" | null) => void
@@ -36,7 +35,7 @@ type PromptAttachmentsInput = {
 }
 
 export function createPromptAttachments(input: PromptAttachmentsInput) {
-  const prompt = input.prompt
+  const prompt = usePrompt()
   const language = useLanguage()
 
   const warn = () => {
