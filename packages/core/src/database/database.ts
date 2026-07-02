@@ -1,31 +1,30 @@
 export * as Database from "./database"
 
 import { EffectDrizzleSqlite } from "@opencode-ai/effect-drizzle-sqlite"
-import { layer as sqliteLayer } from "#sqlite"
-import { layer as postgresLayer } from "#postgres"
+import { EffectDrizzlePg } from "@opencode-ai/effect-drizzle-pg"
+import { layer as createSqliteLayer } from "#sqlite"
+import { layer as createPgLayer } from "#pg"
 import { Context, Effect, Layer } from "effect"
 import { Global } from "../global"
 import { Flag } from "../flag/flag"
 import { isAbsolute, join } from "path"
 import { DatabaseMigration } from "./migration"
+import { DatabaseDialect } from "./dialect"
 import { InstallationChannel } from "../installation/version"
 import { LayerNode } from "../effect/layer-node"
-import { pgUrl, sqlitePath, isPostgres } from "./dialect"
-import { Sqlite } from "./sqlite"
-import { Postgres } from "./postgres"
-import { PostgresEffect } from "./postgres-effect"
 
 const makeSqliteDatabase = EffectDrizzleSqlite.makeWithDefaults()
-type SqliteDatabaseShape = Effect.Success<typeof makeSqliteDatabase>
+type DatabaseShape = Effect.Success<typeof makeSqliteDatabase>
 
 export interface Interface {
-  db: SqliteDatabaseShape
+  db: DatabaseShape
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/storage/Database") {}
 
-function makeSqliteLayer() {
-  return Effect.gen(function* () {
+const sqliteServiceLayer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
     const db = yield* makeSqliteDatabase
 
     yield* db.run("PRAGMA journal_mode = WAL")
@@ -34,33 +33,37 @@ function makeSqliteLayer() {
     yield* db.run("PRAGMA cache_size = -64000")
     yield* db.run("PRAGMA foreign_keys = ON")
     yield* db.run("PRAGMA wal_checkpoint(PASSIVE)")
-    yield* DatabaseMigration.apply(db)
+    yield* DatabaseMigration.applySqlite(db)
 
     return { db }
-  }).pipe(Effect.orDie)
-}
+  }).pipe(Effect.orDie),
+)
 
-function makePostgresLayer() {
-  return Effect.gen(function* () {
-    const rawDb = yield* Postgres.Drizzle
-    const db = PostgresEffect.wrapDb(rawDb) as SqliteDatabaseShape
-    yield* DatabaseMigration.apply(db)
-    return { db }
-  }).pipe(Effect.orDie)
-}
+const pgServiceLayer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const db = yield* EffectDrizzlePg.makeWithDefaults()
 
-export const layer = Layer.effect(Service, makeSqliteLayer())
+    yield* DatabaseMigration.applyPg(db as never)
+
+    return { db: db as unknown as DatabaseShape }
+  }).pipe(Effect.orDie),
+)
 
 export function layerFromPath(filename: string) {
-  return layer.pipe(Layer.provide(sqliteLayer({ filename })))
+  return sqliteServiceLayer.pipe(Layer.provide(createSqliteLayer({ filename })))
 }
 
-function layerFromUrl(url: string) {
-  const pgLayer = Layer.effect(Service, makePostgresLayer())
-  return pgLayer.pipe(Layer.provide(postgresLayer({ url })))
+export function layerFromPgUrl(url: string) {
+  return pgServiceLayer.pipe(Layer.provide(createPgLayer(url)))
 }
 
 export function path() {
+  const url = DatabaseDialect.sqlitePath()
+  if (url) {
+    if (url === ":memory:" || isAbsolute(url)) return url
+    return join(Global.Path.data, url)
+  }
   if (Flag.OPENCODE_DB) {
     if (Flag.OPENCODE_DB === ":memory:" || isAbsolute(Flag.OPENCODE_DB)) return Flag.OPENCODE_DB
     return join(Global.Path.data, Flag.OPENCODE_DB)
@@ -76,12 +79,10 @@ export function path() {
 
 export const defaultLayer = Layer.unwrap(
   Effect.gen(function* () {
-    if (isPostgres()) {
-      const url = pgUrl()
-      if (!url) {
-        return yield* Effect.fail(new Error("PostgreSQL URL not configured"))
-      }
-      return layerFromUrl(url)
+    if (DatabaseDialect.isPostgres()) {
+      const url = DatabaseDialect.pgUrl()
+      if (!url) throw new Error("OPENCODE_DATABASE_URL is set to a postgres URL but the URL is empty")
+      return layerFromPgUrl(url)
     }
     return layerFromPath(path())
   }),

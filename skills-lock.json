@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "sbomtest-review": {
+      "source": "jadsongmatos/sbomtest",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "b0c45f219466f0f8c9c6aead365ae2eff0ed192c82282f56aa2a12ccffe3a35b"
+    },
+    "ts-export-usage-annotator": {
+      "source": "jadsongmatos/ts-export-usage-annotator",
+      "sourceType": "github",
+      "skillPath": "skill/SKILL.md",
+      "computedHash": "e4ad7e515a66c18b4f6a3276399ddc8b5df023888379c1db9e7f0f54aae912a7"
+    }
+  }
+}
