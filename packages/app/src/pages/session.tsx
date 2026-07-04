@@ -1501,8 +1501,27 @@ export default function Page() {
       })
       await halt(input.sessionID)
         .then(() => sdk.client.session.revert(input))
-        .then((result) => {
+        .then(async (result) => {
           if (result.data) merge(result.data)
+
+          const text = value
+            .filter((p) => "content" in p)
+            .map((p) => p.content)
+            .join("")
+            .trim()
+          if (text) {
+            const model = local.model.current()
+            const agent = local.agent.current()
+            const variant = local.model.variant.current()
+            await sdk.client.session.promptAsync({
+              sessionID: input.sessionID,
+              messageID: Identifier.ascending("message"),
+              agent: agent?.name,
+              model: model ? { providerID: model.provider.id, modelID: model.id } : undefined,
+              variant,
+              parts: [{ type: "text", text }],
+            })
+          }
         })
         .catch((err) => {
           batch(() => {

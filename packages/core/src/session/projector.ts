@@ -80,12 +80,23 @@ function messageData(
   info: (typeof SessionV1.Event.MessageUpdated.Type)["data"]["info"],
 ): typeof MessageTable.$inferInsert.data {
   const { id: _, sessionID: __, ...rest } = info
-  return rest as DeepMutable<typeof rest>
+  return sanitizeNullBytes(rest) as DeepMutable<typeof rest>
+}
+
+function sanitizeNullBytes(obj: unknown): unknown {
+  if (typeof obj === "string") return obj.replace(/\u0000/g, "")
+  if (Array.isArray(obj)) return obj.map(sanitizeNullBytes)
+  if (obj && typeof obj === "object") {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(obj)) out[k] = sanitizeNullBytes(v)
+    return out
+  }
+  return obj
 }
 
 function partData(part: (typeof SessionV1.Event.PartUpdated.Type)["data"]["part"]): typeof PartTable.$inferInsert.data {
   const { id: _, messageID: __, sessionID: ___, ...rest } = part
-  return rest as DeepMutable<typeof rest>
+  return sanitizeNullBytes(rest) as DeepMutable<typeof rest>
 }
 
 function applyUsage(
